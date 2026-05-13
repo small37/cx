@@ -1,0 +1,19 @@
+1) Launch app:
+   open ./SleepGuardDemo.app
+
+2) Install command scripts:
+   cd ./scripts
+   ./install_commands.sh
+
+3) Install hooks template:
+   ./install_claude_hooks.sh
+
+4) Merge template into your Claude hooks config:
+   ./merge_claude_hooks.sh /path/to/your/hooks.json
+
+5) Smoke test:
+   tbmsg "TouchBar online"
+   tbpermission "Need confirm"
+
+6) Resource check:
+   ./release_check.sh

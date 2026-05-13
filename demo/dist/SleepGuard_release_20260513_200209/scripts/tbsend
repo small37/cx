@@ -1,0 +1,19 @@
+#!/bin/bash
+set -euo pipefail
+
+SOCK="${HOME}/.touchbar-island/touchbar.sock"
+SWIFT_SENDER="${HOME}/.touchbar-island/bin/tbsend_swift"
+
+if [ ! -S "$SOCK" ]; then
+  exit 0
+fi
+
+if command -v nc >/dev/null 2>&1; then
+  if printf '%s\n' "$*" | nc -U "$SOCK" >/dev/null 2>&1; then
+    exit 0
+  fi
+fi
+
+if [ -x "$SWIFT_SENDER" ]; then
+  "$SWIFT_SENDER" "$SOCK" "$*" >/dev/null 2>&1 || true
+fi
