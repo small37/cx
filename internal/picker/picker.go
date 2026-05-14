@@ -36,13 +36,20 @@ func IsDangerous(cmd string) bool {
 
 // Match 空格分词 AND 匹配（大小写不敏感）。
 func Match(command, query string) bool {
-	q := strings.TrimSpace(query)
-	if q == "" {
+	terms := matchTerms(query)
+	if len(terms) == 0 {
 		return true
 	}
-	cl := strings.ToLower(command)
-	for _, part := range strings.Fields(strings.ToLower(q)) {
-		if !strings.Contains(cl, part) {
+	return matchPrepared(strings.ToLower(command), terms)
+}
+
+func matchTerms(query string) []string {
+	return strings.Fields(strings.ToLower(strings.TrimSpace(query)))
+}
+
+func matchPrepared(commandLower string, terms []string) bool {
+	for _, part := range terms {
+		if !strings.Contains(commandLower, part) {
 			return false
 		}
 	}
@@ -85,13 +92,13 @@ var (
 				Foreground(lipgloss.Color("#1a1b26")).
 				Italic(true)
 
-	numStyle    = lipgloss.NewStyle().Foreground(ok)
-	markerStyle = lipgloss.NewStyle().Foreground(accent2).Bold(true)
-	cmdStyle    = lipgloss.NewStyle().Foreground(textFg)
-	dangerStyle = lipgloss.NewStyle().Foreground(danger).Bold(true)
-	hintStyle   = lipgloss.NewStyle().Foreground(subtle).Italic(true)
-	footerStyle = lipgloss.NewStyle().Foreground(warn)
-	emptyStyle  = lipgloss.NewStyle().Foreground(muted).Italic(true)
+	numStyle     = lipgloss.NewStyle().Foreground(ok)
+	markerStyle  = lipgloss.NewStyle().Foreground(accent2).Bold(true)
+	cmdStyle     = lipgloss.NewStyle().Foreground(textFg)
+	dangerStyle  = lipgloss.NewStyle().Foreground(danger).Bold(true)
+	hintStyle    = lipgloss.NewStyle().Foreground(subtle).Italic(true)
+	footerStyle  = lipgloss.NewStyle().Foreground(warn)
+	emptyStyle   = lipgloss.NewStyle().Foreground(muted).Italic(true)
 	counterStyle = lipgloss.NewStyle().Foreground(subtle)
 )
 
@@ -103,6 +110,9 @@ const (
 type model struct {
 	title    string
 	items    []Item
+	display  []string
+	match    []string
+	danger   []bool
 	filtered []int
 	idx      int
 	offset   int
@@ -123,20 +133,28 @@ func newModel(title string, items []Item) model {
 	ti.CharLimit = 0
 
 	m := model{
-		title: title,
-		items: items,
-		input: ti,
-		listH: listMax,
+		title:   title,
+		items:   items,
+		display: make([]string, len(items)),
+		match:   make([]string, len(items)),
+		danger:  make([]bool, len(items)),
+		input:   ti,
+		listH:   listMax,
+	}
+	for i, it := range items {
+		m.display[i] = singleLinePreview(it.Command)
+		m.match[i] = strings.ToLower(it.Command)
+		m.danger[i] = IsDangerous(m.display[i])
 	}
 	m.refilter()
 	return m
 }
 
 func (m *model) refilter() {
-	q := m.input.Value()
+	terms := matchTerms(m.input.Value())
 	m.filtered = m.filtered[:0]
-	for i, it := range m.items {
-		if Match(it.Command, q) {
+	for i, text := range m.match {
+		if matchPrepared(text, terms) {
 			m.filtered = append(m.filtered, i)
 		}
 	}
@@ -301,9 +319,10 @@ func (m model) View() string {
 			end = len(m.filtered)
 		}
 		for row := m.offset; row < end; row++ {
-			it := m.items[m.filtered[row]]
+			itemIdx := m.filtered[row]
+			it := m.items[itemIdx]
 			isSel := row == m.idx
-			b.WriteString(renderRow(row, it, isSel, contentW))
+			b.WriteString(renderRow(row, it, m.display[itemIdx], m.danger[itemIdx], isSel, contentW))
 			b.WriteByte('\n')
 		}
 		for i := end - m.offset; i < m.listH; i++ {
@@ -325,14 +344,13 @@ func (m model) View() string {
 }
 
 // 渲染单行；isSel 时整行底色，否则正常着色，并补足末尾空白以保证选中底色一直延伸到行尾。
-func renderRow(row int, it Item, isSel bool, w int) string {
+func renderRow(row int, it Item, cmd string, dangerous bool, isSel bool, w int) string {
 	marker := "  "
 	if isSel {
 		marker = "▶ "
 	}
 	numTxt := padLeft(itoa(row+1), 3) + "  "
 	hint := it.Hint
-	cmd := singleLinePreview(it.Command)
 
 	// 计算可见宽度，必要时截断命令文本，留空间给 hint
 	prefix := " " + marker + numTxt // 含一格内左留白
@@ -375,7 +393,7 @@ func renderRow(row int, it Item, isSel bool, w int) string {
 	}
 	numR := numStyle.Render(numTxt)
 	cmdStyleUse := cmdStyle
-	if IsDangerous(cmd) {
+	if dangerous {
 		cmdStyleUse = dangerStyle
 	}
 	cmdR := cmdStyleUse.Render(cmdDisp)

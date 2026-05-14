@@ -78,9 +78,6 @@ func runHistory() error {
 		fmt.Fprintln(os.Stderr, "(没有历史命令)")
 		return nil
 	}
-	if len(cmds) > 100 {
-		cmds = cmds[:100]
-	}
 	items := make([]picker.Item, len(cmds))
 	for i, c := range cmds {
 		items[i] = picker.Item{Command: c}
@@ -101,12 +98,9 @@ func runFav() error {
 		return err
 	}
 	defer s.Close()
-	favs, err := s.List()
+	favs, err := s.ListLimit(100)
 	if err != nil {
 		return err
-	}
-	if len(favs) > 100 {
-		favs = favs[:100]
 	}
 	if len(favs) == 0 {
 		fmt.Fprintln(os.Stderr, "(还没有收藏命令，用 `cx add` 添加)")

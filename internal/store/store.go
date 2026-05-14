@@ -57,7 +57,21 @@ func (s *Store) Close() error { return s.db.Close() }
 func nowISO() string { return time.Now().Format("2006-01-02T15:04:05") }
 
 func (s *Store) List() ([]Favorite, error) {
-	rows, err := s.db.Query(`SELECT id, COALESCE(title,''), command, COALESCE(description,''), COALESCE(category,''), COALESCE(sort_order,0), COALESCE(use_count,0) FROM favorites ORDER BY sort_order ASC, id ASC`)
+	return s.list(0)
+}
+
+func (s *Store) ListLimit(limit int) ([]Favorite, error) {
+	return s.list(limit)
+}
+
+func (s *Store) list(limit int) ([]Favorite, error) {
+	q := `SELECT id, COALESCE(title,''), command, COALESCE(description,''), COALESCE(category,''), COALESCE(sort_order,0), COALESCE(use_count,0) FROM favorites ORDER BY sort_order ASC, id ASC`
+	args := []any{}
+	if limit > 0 {
+		q += ` LIMIT ?`
+		args = append(args, limit)
+	}
+	rows, err := s.db.Query(q, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -148,4 +162,3 @@ func (s *Store) BumpUse(id int64) error {
 	_, err := s.db.Exec(`UPDATE favorites SET use_count = use_count + 1, updated_at = ? WHERE id = ?`, nowISO(), id)
 	return err
 }
-
