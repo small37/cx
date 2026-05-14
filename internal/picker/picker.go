@@ -207,7 +207,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.canceled = true
 			m.done = true
 			return m, tea.Quit
-		case "enter":
+		case "enter", "tab":
 			if len(m.filtered) > 0 {
 				m.selected = m.items[m.filtered[m.idx]].Command
 			}
