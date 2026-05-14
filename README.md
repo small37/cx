@@ -33,7 +33,7 @@ open build/SleepGuardDemo.app
 
 菜单结构：
 
-- 阻止系统休眠 / 允许系统休眠（状态切换）
+- 阻止系统休眠(含合盖) / 允许系统休眠(含合盖)（状态切换）
 - 阻止 30 分钟 / 1 小时 / 2 小时（定时防休眠）
 - 开机启动（SMAppService）
 - TouchBar 消息状态（运行/暂停、当前消息、清空消息）
@@ -202,10 +202,11 @@ cd /Users/one/Documents/项目/阻止休眠小程序/demo/scripts
 
 ## 测试必要功能
 
-终端 A 观察断言：
+终端 A 观察断言与系统禁睡：
 
 ```bash
-pmset -g assertions | rg PreventUserIdleSystemSleep
+pmset -g assertions | rg "PreventSystemSleep"
+pmset -g | rg disablesleep
 ```
 
 终端 B 用命令行测试器快速验证：

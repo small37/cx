@@ -16,10 +16,14 @@ final class StatusBarController: NSObject {
     private let clearMessageItem = NSMenuItem()
     private let pauseDisplayItem = NSMenuItem()
     private let resumeDisplayItem = NSMenuItem()
+    private let featureSwitchItem = NSMenuItem()
     private let titleItem = NSMenuItem(title: "☕ SleepGuard", action: nil, keyEquivalent: "")
     private var disableTimer: Timer?
     private var selectedDuration: TimeInterval?
     private var observerID: UUID?
+    private(set) var isCaptureAndTextFeatureEnabled = true
+
+    var onCaptureAndTextFeatureToggled: ((Bool) -> Void)?
 
     init(messageStore: CurrentMessageStore) {
         self.messageStore = messageStore
@@ -71,6 +75,14 @@ final class StatusBarController: NSObject {
 
         menu.addItem(.separator())
 
+        featureSwitchItem.title = "截图与获取文本功能"
+        featureSwitchItem.action = #selector(toggleCaptureAndTextFeature)
+        featureSwitchItem.target = self
+        featureSwitchItem.state = .on
+        menu.addItem(featureSwitchItem)
+
+        menu.addItem(.separator())
+
         toggleItem.action = #selector(togglePreventSleep)
         toggleItem.target = self
         menu.addItem(toggleItem)
@@ -111,7 +123,7 @@ final class StatusBarController: NSObject {
     private func updateUI() {
         guard let button = statusItem.button else { return }
         let isActive = sleepManager.isPreventingSleep
-        toggleItem.title = isActive ? "允许系统休眠" : "阻止系统休眠"
+        toggleItem.title = isActive ? "允许系统休眠(含合盖)" : "阻止系统休眠(含合盖)"
         toggleItem.state = selectedDuration == nil && isActive ? .on : .off
         prevent30Item.state = selectedDuration == 30 * 60 ? .on : .off
         prevent60Item.state = selectedDuration == 60 * 60 ? .on : .off
@@ -165,7 +177,7 @@ final class StatusBarController: NSObject {
         disableTimer = nil
         selectedDuration = duration
 
-        let enabled = sleepManager.enablePreventSleep(reason: "SleepGuardDemo timed sleep prevention")
+        let enabled = sleepManager.enablePreventSleep(reason: "SleepGuardDemo timed full sleep prevention")
         guard enabled else {
             selectedDuration = nil
             updateUI()
@@ -205,6 +217,13 @@ final class StatusBarController: NSObject {
 
     @objc private func resumeDisplay() {
         messageStore.setPaused(false)
+        NSSound.beep()
+    }
+
+    @objc private func toggleCaptureAndTextFeature() {
+        isCaptureAndTextFeatureEnabled.toggle()
+        featureSwitchItem.state = isCaptureAndTextFeatureEnabled ? .on : .off
+        onCaptureAndTextFeatureToggled?(isCaptureAndTextFeatureEnabled)
         NSSound.beep()
     }
 
