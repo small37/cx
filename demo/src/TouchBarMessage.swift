@@ -1,11 +1,8 @@
 import Foundation
 
 enum MessageType {
-    case status
     case info
-    case permission
     case done
-    case error
 }
 
 struct TouchBarMessage {
@@ -16,4 +13,3 @@ struct TouchBarMessage {
     let createdAt: Date
     let ttl: TimeInterval?
 }
-

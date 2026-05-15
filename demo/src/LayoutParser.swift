@@ -86,6 +86,14 @@ final class LayoutParser {
             return
         }
 
+        if token.hasPrefix("sound:") {
+            let value = unescape(String(token.dropFirst("sound:".count))).trimmingCharacters(in: .whitespacesAndNewlines)
+            if !value.isEmpty {
+                result.append(.sound(value))
+            }
+            return
+        }
+
         if token.hasPrefix("text:") {
             let parts = splitEscaped(token, maxSplits: 2)
             if parts.count == 3 {

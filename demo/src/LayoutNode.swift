@@ -14,6 +14,7 @@ enum LayoutNode {
     case tag(String)
     case button(title: String, action: String, color: String?)
     case icon(path: String, size: CGFloat?)
+    case sound(String)
     case flex
     case space(CGFloat)
 }

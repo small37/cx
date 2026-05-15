@@ -16,6 +16,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let toastWindow = ToastWindow()
     private let permissionManager = PermissionManager()
     private var isCapturingScreenshot = false
+    private var isReadingSelectedText = false
     private var isCaptureAndTextFeatureEnabled = true
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -58,21 +59,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             toastWindow.show(message: "截图与获取文本功能已关闭")
             return
         }
-        guard !isCapturingScreenshot else { return }
+        guard !isCapturingScreenshot, !isReadingSelectedText else { return }
         guard permissionManager.ensureAccessibilityPermission() else {
             toastWindow.show(message: "请先在系统设置中开启辅助功能权限")
             return
         }
+        isReadingSelectedText = true
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self else { return }
             let result = self.selectedTextReader.readSelectedText()
             guard let text = result.text?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty else {
+                DispatchQueue.main.async {
+                    self.isReadingSelectedText = false
+                }
                 return
             }
             let title = self.title(for: result.method)
             DispatchQueue.main.async {
                 self.floatingTextPanel.show(sourceText: text, translatedText: "翻译中...", title: title)
                 self.translateSelectedText(text)
+                self.isReadingSelectedText = false
             }
         }
     }

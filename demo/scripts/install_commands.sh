@@ -6,8 +6,10 @@ TARGET_DIR="${HOME}/.touchbar-island/bin"
 BUILD_DIR="$(cd "$ROOT_DIR/.." && pwd)/build"
 
 mkdir -p "$TARGET_DIR"
-cp "$ROOT_DIR"/tb* "$TARGET_DIR"/
-chmod +x "$TARGET_DIR"/tb*
+cp "$ROOT_DIR"/tbmsg "$TARGET_DIR"/
+cp "$ROOT_DIR"/tbdone "$TARGET_DIR"/
+cp "$ROOT_DIR"/tbsend "$TARGET_DIR"/
+chmod +x "$TARGET_DIR"/tbmsg "$TARGET_DIR"/tbdone "$TARGET_DIR"/tbsend
 
 if [ -x "$BUILD_DIR/tbsend_swift" ]; then
   cp "$BUILD_DIR/tbsend_swift" "$TARGET_DIR/tbsend_swift"

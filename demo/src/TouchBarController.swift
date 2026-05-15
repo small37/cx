@@ -28,6 +28,9 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
     private static let trailingIdentifier = NSTouchBarItem.Identifier("com.sleepguard.touchbar.trailing")
     private var renderedNodes: [LayoutNode] = [.text(color: .white, value: "已启动")]
     private var hasTrailingButtons = false
+    private var currentMessageType: MessageType?
+    private var lastPlayedSoundMessageID: String?
+    private var activeSound: NSSound?
 
     init(store: CurrentMessageStore) {
         self.store = store
@@ -60,10 +63,14 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
             guard let self else { return }
             if isPaused {
                 self.renderedNodes = [.text(color: .gray, value: "已暂停显示")]
+                self.currentMessageType = nil
             } else if let currentMessage {
                 self.renderedNodes = self.parser.parse(currentMessage.layout)
+                self.currentMessageType = currentMessage.type
+                self.playSoundIfNeeded(messageID: currentMessage.id, nodes: self.renderedNodes)
             } else {
                 self.renderedNodes = self.parser.parse("[text:white:\(defaultStatus)]")
+                self.currentMessageType = nil
             }
 
             self.hasTrailingButtons = self.renderedNodes.contains {
@@ -85,9 +92,7 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
             DispatchQueue.main.async {
                 self.hostView?.hostedTouchBar = touchBar
                 self.hostWindow?.makeFirstResponder(self.hostView)
-                self.hostWindow?.orderFrontRegardless()
-                self.hostWindow?.makeKey()
-                NSApp.activate(ignoringOtherApps: true)
+                self.hostWindow?.orderFront(nil)
                 self.presentSystemModalTouchBar(touchBar)
             }
         }
@@ -120,6 +125,7 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
             switch $0 {
             case .button: return false
             case .flex: return false
+            case .sound: return false
             default: return true
             }
         }
@@ -184,6 +190,7 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
     }
 
     private func configureLeadingRow(_ left: NSStackView, with nodes: [LayoutNode]) {
+        let textSize = currentMessageType == .info ? 17.0 : 13.0
         for node in nodes {
             switch node {
             case .text(let color, let value):
@@ -191,7 +198,7 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
                 label.textColor = nsColor(from: color)
                 label.lineBreakMode = .byTruncatingTail
                 label.maximumNumberOfLines = 1
-                label.font = FontManager.shared.regular(size: 13)
+                label.font = FontManager.shared.regular(size: CGFloat(textSize))
                 label.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
                 left.addArrangedSubview(label)
             case .tag(let value):
@@ -203,7 +210,7 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
                 label.drawsBackground = true
                 label.lineBreakMode = .byTruncatingTail
                 label.maximumNumberOfLines = 1
-                label.font = FontManager.shared.bold(size: 13)
+                label.font = FontManager.shared.bold(size: CGFloat(textSize))
                 label.alignment = .center
                 label.translatesAutoresizingMaskIntoConstraints = false
                 label.wantsLayer = true
@@ -213,7 +220,8 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
                 label.heightAnchor.constraint(greaterThanOrEqualToConstant: 24).isActive = true
                 left.addArrangedSubview(label)
             case .icon(let path, let size):
-                guard let image = NSImage(contentsOfFile: path) else { continue }
+                let resolvedPath = resolveIconPath(path)
+                guard let image = NSImage(contentsOfFile: resolvedPath) else { continue }
                 let iconView = NSImageView()
                 iconView.image = image
                 iconView.imageScaling = .scaleProportionallyUpOrDown
@@ -222,7 +230,7 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
                 iconView.widthAnchor.constraint(equalToConstant: edge).isActive = true
                 iconView.heightAnchor.constraint(equalToConstant: edge).isActive = true
                 left.addArrangedSubview(iconView)
-            case .button, .flex:
+            case .button, .flex, .sound:
                 continue
             case .space(let width):
                 let spacer = NSView(frame: NSRect(x: 0, y: 0, width: width, height: 1))
@@ -234,15 +242,28 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
     }
 
     private func configureTrailingRow(_ right: NSStackView, with nodes: [LayoutNode]) {
+        right.setContentHuggingPriority(.required, for: .horizontal)
+        right.setContentCompressionResistancePriority(.required, for: .horizontal)
         for node in nodes {
             guard case .button(let title, let action, let colorToken) = node else { continue }
             let button = NSButton(title: title, target: self, action: #selector(onButtonClick(_:)))
             button.identifier = NSUserInterfaceItemIdentifier(action)
+            button.controlSize = .small
+            button.bezelStyle = .rounded
+            button.lineBreakMode = .byTruncatingTail
+            button.setContentCompressionResistancePriority(.required, for: .horizontal)
+            button.setContentHuggingPriority(.required, for: .horizontal)
             if let color = nsButtonColor(from: colorToken) {
                 button.bezelColor = color
             }
             right.addArrangedSubview(button)
         }
+
+        // Keep a small trailing padding so the right-most button is not visually clipped.
+        let trailingPadding = NSView(frame: NSRect(x: 0, y: 0, width: 8, height: 1))
+        trailingPadding.translatesAutoresizingMaskIntoConstraints = false
+        trailingPadding.widthAnchor.constraint(equalToConstant: 8).isActive = true
+        right.addArrangedSubview(trailingPadding)
     }
 
     private func normalizedNodes(_ nodes: [LayoutNode]) -> [LayoutNode] {
@@ -257,7 +278,7 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
             switch $0 {
             case .text, .tag, .space, .icon:
                 return true
-            case .flex, .button:
+            case .flex, .button, .sound:
                 return false
             }
         }
@@ -284,6 +305,22 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
             return true
         }
         return icons + others
+    }
+
+    private func playSoundIfNeeded(messageID: String, nodes: [LayoutNode]) {
+        guard lastPlayedSoundMessageID != messageID else { return }
+        guard let soundToken = nodes.compactMap({
+            if case .sound(let token) = $0 { return token }
+            return nil
+        }).first else { return }
+
+        let resolvedPath = resolveSoundPath(soundToken)
+        guard FileManager.default.fileExists(atPath: resolvedPath) else { return }
+        guard let sound = NSSound(contentsOfFile: resolvedPath, byReference: true) else { return }
+
+        activeSound = sound
+        lastPlayedSoundMessageID = messageID
+        sound.play()
     }
 
     private func nsColor(from color: LayoutColor) -> NSColor {
@@ -329,6 +366,34 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
         let g = CGFloat((value >> 8) & 0xff) / 255.0
         let b = CGFloat(value & 0xff) / 255.0
         return NSColor(calibratedRed: r, green: g, blue: b, alpha: 1.0)
+    }
+
+    private func resolveIconPath(_ raw: String) -> String {
+        let token = raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let iconDir = "/Users/one/Documents/项目/多功能bar|休眠/demo/ico"
+        switch token {
+        case "claude":
+            return iconDir + "/claude.png"
+        case "hermes":
+            return iconDir + "/hermes.png"
+        case "codex":
+            return iconDir + "/codex.png"
+        default:
+            return raw
+        }
+    }
+
+    private func resolveSoundPath(_ raw: String) -> String {
+        let token = raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let soundDir = "/Users/one/Documents/项目/多功能bar|休眠/demo/wav"
+        switch token {
+        case "start":
+            return soundDir + "/start.wav"
+        case "end":
+            return soundDir + "/end.wav"
+        default:
+            return raw
+        }
     }
 
     private func appendRenderLog(_ text: String) {

@@ -6,13 +6,27 @@ enum AppConfig {
         .appendingPathComponent("config.json")
 
     static func loadDictionary() -> [String: Any] {
-        ensureDefaultConfigExists()
-        guard let data = try? Data(contentsOf: url),
-              let object = try? JSONSerialization.jsonObject(with: data),
-              let dictionary = object as? [String: Any] else {
-            return defaultDictionary
+        cacheQueue.sync {
+            ensureDefaultConfigExists()
+            let modifiedAt = fileModifiedDate() ?? .distantPast
+            if let cached = cachedDictionary,
+               let cachedAt = cachedModifiedAt,
+               cachedAt >= modifiedAt {
+                return cached
+            }
+
+            guard let data = try? Data(contentsOf: url),
+                  let object = try? JSONSerialization.jsonObject(with: data),
+                  let dictionary = object as? [String: Any] else {
+                cachedDictionary = defaultDictionary
+                cachedModifiedAt = modifiedAt
+                return defaultDictionary
+            }
+
+            cachedDictionary = dictionary
+            cachedModifiedAt = modifiedAt
+            return dictionary
         }
-        return dictionary
     }
 
     static func string(section: String, key: String) -> String? {
@@ -61,7 +75,20 @@ enum AppConfig {
             return
         }
         try? data.write(to: url, options: .atomic)
+        cachedDictionary = dictionary
+        cachedModifiedAt = fileModifiedDate() ?? Date()
     }
+
+    private static func fileModifiedDate() -> Date? {
+        guard let attributes = try? FileManager.default.attributesOfItem(atPath: url.path) else {
+            return nil
+        }
+        return attributes[.modificationDate] as? Date
+    }
+
+    private static let cacheQueue = DispatchQueue(label: "sleepguard.appconfig.cache")
+    private static var cachedDictionary: [String: Any]?
+    private static var cachedModifiedAt: Date?
 
     private static let defaultDictionary: [String: Any] = [
         "hotkeys": [

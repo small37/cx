@@ -1,5 +1,32 @@
 import AppKit
 
+final class CopyableTextView: NSTextView {
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        guard event.type == .keyDown else { return false }
+        guard event.modifierFlags.contains(.command),
+              let chars = event.charactersIgnoringModifiers?.lowercased() else {
+            return false
+        }
+
+        switch chars {
+        case "c":
+            copy(nil)
+            return true
+        case "v":
+            paste(nil)
+            return true
+        case "x":
+            cut(nil)
+            return true
+        case "a":
+            selectAll(nil)
+            return true
+        default:
+            return false
+        }
+    }
+}
+
 final class FloatingTextPanel: NSPanel {
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { true }
@@ -23,19 +50,38 @@ final class FloatingTextPanelController {
     private var panel: FloatingTextPanel?
     private var sourceTextView: NSTextView?
     private var translatedTextView: NSTextView?
+    private var hasShownPanel = false
 
     func show(sourceText: String, translatedText: String, title: String = "划词翻译") {
         let panel = ensurePanel()
-        panel.title = title
-        sourceTextView?.string = sourceText
-        translatedTextView?.string = translatedText
-        panel.center()
+        if panel.title != title {
+            panel.title = title
+        }
+        if sourceTextView?.string != sourceText {
+            sourceTextView?.string = sourceText
+        }
+        if translatedTextView?.string != translatedText {
+            translatedTextView?.string = translatedText
+        }
+        if !hasShownPanel {
+            panel.center()
+            hasShownPanel = true
+        }
         NSApp.activate(ignoringOtherApps: true)
-        panel.makeKeyAndOrderFront(nil)
+        if !panel.isVisible {
+            panel.makeKeyAndOrderFront(nil)
+        } else {
+            panel.makeKey()
+        }
+        if let sourceTextView {
+            panel.makeFirstResponder(sourceTextView)
+        }
     }
 
     func updateTranslation(_ translatedText: String) {
-        translatedTextView?.string = translatedText
+        if translatedTextView?.string != translatedText {
+            translatedTextView?.string = translatedText
+        }
     }
 
     private func ensurePanel() -> FloatingTextPanel {
@@ -101,7 +147,7 @@ final class FloatingTextPanelController {
         scrollView.layer?.cornerRadius = 10
         scrollView.layer?.backgroundColor = NSColor(calibratedWhite: 0.08, alpha: 1).cgColor
 
-        let textView = NSTextView(frame: scrollView.bounds)
+        let textView = CopyableTextView(frame: scrollView.bounds)
         textView.isEditable = true
         textView.isSelectable = true
         textView.isRichText = false

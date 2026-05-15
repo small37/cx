@@ -1,4 +1,38 @@
 #!/bin/bash
 set -euo pipefail
-"${HOME}/.touchbar-island/bin/tbsend" "MSG $*"
 
+ICON_KEY="${TBMSG_ICON_KEY:-claude}"
+ICON_DIR="/Users/one/Documents/项目/多功能bar|休眠/demo/ico"
+
+if [ "$#" -eq 0 ]; then
+  exit 0
+fi
+
+case "${ICON_KEY}" in
+  claude) ICON_PATH="${ICON_DIR}/claude.png" ;;
+  hermes) ICON_PATH="${ICON_DIR}/hermes.png" ;;
+  codex) ICON_PATH="${ICON_DIR}/codex.png" ;;
+  *) ICON_PATH="${ICON_KEY}" ;;
+esac
+
+if [ "${1}" = "--icon" ] && [ "$#" -ge 3 ]; then
+  case "${2}" in
+    claude) ICON_PATH="${ICON_DIR}/claude.png" ;;
+    hermes) ICON_PATH="${ICON_DIR}/hermes.png" ;;
+    codex) ICON_PATH="${ICON_DIR}/codex.png" ;;
+    *) ICON_PATH="${2}" ;;
+  esac
+  shift 2
+fi
+
+# Support leading keyword directly in message: tbmsg "claude hello"
+if [ "$#" -ge 2 ]; then
+  case "${1}" in
+    claude) ICON_PATH="${ICON_DIR}/claude.png"; shift 1 ;;
+    hermes) ICON_PATH="${ICON_DIR}/hermes.png"; shift 1 ;;
+    codex) ICON_PATH="${ICON_DIR}/codex.png"; shift 1 ;;
+  esac
+fi
+
+LAYOUT="[icon:${ICON_PATH}] [space:6] $*"
+"${HOME}/.touchbar-island/bin/tbsend" "MSG ${LAYOUT}"

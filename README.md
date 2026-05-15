@@ -44,10 +44,10 @@ open build/SleepGuardDemo.app
 已实现（低占用事件驱动）：
 
 - Unix Domain Socket：`~/.touchbar-island/touchbar.sock`
-- 支持命令：`MSG / PERMISSION / DONE / ERROR / STATUS / CLEAR`
+- 支持命令：`MSG / DONE`
 - 单消息覆盖策略：新消息替换旧消息
 - `DONE` 自动 TTL 8 秒清理（一次性定时器）
-- 暂停显示（暂停时忽略除 STATUS 外的命令）
+- 暂停显示（暂停时忽略消息更新）
 
 脚本目录：
 
@@ -64,11 +64,17 @@ cd /Users/one/Documents/项目/阻止休眠小程序/demo/scripts
 
 ```bash
 tbmsg "Claude 正在执行任务"
-tbpermission "Claude 需要你确认权限"
 tbdone "任务完成：已修改 3 个文件"
-tberror "命令执行失败"
-tbstatus "Claude Ready"
-tbclear
+```
+
+`tbmsg` 图标快捷关键字：
+
+```bash
+tbmsg "claude 任务进行中"
+tbmsg "hermes 任务进行中"
+tbmsg "codex 任务进行中"
+tbmsg --icon claude "任务进行中"
+tbmsg --icon /absolute/path/to/icon.png "任务进行中"
 ```
 
 DSL 转义规则：
@@ -114,9 +120,7 @@ cd /Users/one/Documents/项目/阻止休眠小程序/demo/scripts
 把模板合并到你自己的 Claude hooks 配置后，可用以下命令快速冒烟：
 
 ```bash
-tbpermission "Claude 需要你确认权限"
 tbdone "任务完成：已修改 3 个文件"
-tberror "命令执行失败"
 ```
 
 ## 资源占用基准
@@ -216,6 +220,33 @@ pmset -g | rg disablesleep
 ```
 
 预期：20 秒内能看到断言，之后自动释放。
+
+## 免重复输密码（sudoers 白名单）
+
+`SleepManager` 已优先走无密码命令：
+
+```bash
+sudo -n /usr/bin/pmset -a disablesleep 1
+sudo -n /usr/bin/pmset -a disablesleep 0
+```
+
+首次配置一次 sudoers 白名单即可，后续菜单切换不再反复弹管理员密码。
+
+执行安装脚本：
+
+```bash
+cd /Users/one/Documents/项目/多功能bar|休眠/demo/scripts
+./install_pmset_sudoers.sh
+```
+
+验证：
+
+```bash
+sudo -n /usr/bin/pmset -a disablesleep 1
+sudo -n /usr/bin/pmset -a disablesleep 0
+```
+
+如果验证失败，程序会自动回退到原有 `osascript` 提权弹窗路径。
 
 ## 新增功能验收
 

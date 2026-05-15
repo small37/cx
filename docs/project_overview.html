@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SleepGuard 项目介绍</title>
+  <style>
+    :root {
+      --bg: #0f1115;
+      --panel: #171a21;
+      --panel-2: #1d2230;
+      --text: #e9edf5;
+      --muted: #9aa4b2;
+      --accent: #64b5ff;
+      --ok: #4cd964;
+      --warn: #ffcc00;
+      --border: #2a3140;
+      --code: #0d1320;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+      background: radial-gradient(circle at 20% 0%, #1a2030 0%, var(--bg) 45%);
+      color: var(--text);
+      line-height: 1.6;
+    }
+    .wrap { max-width: 980px; margin: 0 auto; padding: 28px 20px 56px; }
+    h1 { margin: 0 0 8px; font-size: 32px; }
+    h2 {
+      margin: 28px 0 12px;
+      font-size: 20px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border);
+    }
+    p, li { color: var(--text); }
+    .muted { color: var(--muted); }
+    .card {
+      background: linear-gradient(180deg, var(--panel) 0%, #141922 100%);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px 16px;
+      margin: 10px 0;
+    }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+    code {
+      background: var(--code);
+      border: 1px solid #27334d;
+      border-radius: 6px;
+      padding: 2px 6px;
+      color: #b8d7ff;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 13px;
+    }
+    pre {
+      background: var(--code);
+      border: 1px solid #27334d;
+      border-radius: 10px;
+      padding: 12px;
+      overflow: auto;
+      color: #d4e7ff;
+      margin: 8px 0;
+      font-size: 13px;
+    }
+    .tag {
+      display: inline-block;
+      background: #1e3550;
+      border: 1px solid #2d4a6b;
+      color: #b6d8ff;
+      border-radius: 999px;
+      padding: 3px 10px;
+      font-size: 12px;
+      margin-right: 8px;
+    }
+    .ok { color: var(--ok); }
+    .warn { color: var(--warn); }
+    .toc a { color: var(--accent); text-decoration: none; }
+    .toc a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>SleepGuard 项目介绍</h1>
+    <p class="muted">macOS 菜单栏工具：防休眠、截图/选中文本识别、翻译展示、TouchBar 消息通道。</p>
+
+    <div class="card">
+      <span class="tag">平台</span> macOS AppKit + Swift
+      <span class="tag">形态</span> Menu Bar App
+      <span class="tag">关键能力</span> 防休眠 / OCR / 翻译 / TouchBar DSL
+    </div>
+
+    <h2 id="toc">目录</h2>
+    <ul class="toc">
+      <li><a href="#overview">1. 项目目标</a></li>
+      <li><a href="#structure">2. 代码结构</a></li>
+      <li><a href="#flow">3. 核心流程</a></li>
+      <li><a href="#commands">4. 命令与 DSL</a></li>
+      <li><a href="#config">5. 配置与权限</a></li>
+      <li><a href="#build">6. 构建运行</a></li>
+    </ul>
+
+    <h2 id="overview">1. 项目目标</h2>
+    <div class="card">
+      <ul>
+        <li>阻止系统休眠（支持定时与合盖场景策略）。</li>
+        <li>通过热键触发截图或读取选中文本，进行 OCR/翻译后弹窗展示。</li>
+        <li>通过本地 Unix Socket 接收消息并渲染到 TouchBar（含图标、按钮、声音 DSL）。</li>
+      </ul>
+    </div>
+
+    <h2 id="structure">2. 代码结构</h2>
+    <div class="grid">
+      <div class="card">
+        <strong>应用入口</strong>
+        <p><code>demo/src/main.swift</code><br><code>demo/src/AppDelegate.swift</code></p>
+      </div>
+      <div class="card">
+        <strong>菜单与防休眠</strong>
+        <p><code>demo/src/StatusBarController.swift</code><br><code>demo/src/SleepManager.swift</code></p>
+      </div>
+      <div class="card">
+        <strong>文本/截图链路</strong>
+        <p><code>SelectedTextReader.swift</code>、<code>ScreenshotManager.swift</code><br><code>OfflineOCR.swift</code>、<code>BaiduTranslator.swift</code></p>
+      </div>
+      <div class="card">
+        <strong>弹窗与交互</strong>
+        <p><code>FloatingTextPanel.swift</code><br><code>ToastWindow.swift</code></p>
+      </div>
+      <div class="card">
+        <strong>TouchBar 通道</strong>
+        <p><code>SocketServer.swift</code><br><code>CommandRouter.swift</code><br><code>TouchBarController.swift</code></p>
+      </div>
+      <div class="card">
+        <strong>配置/热键</strong>
+        <p><code>AppConfig.swift</code><br><code>HotkeyConfig.swift</code><br><code>HotkeyManager.swift</code></p>
+      </div>
+    </div>
+
+    <h2 id="flow">3. 核心流程</h2>
+    <div class="card">
+      <strong>A. 文本获取与翻译</strong>
+      <pre>热键触发 -> AX/剪贴板读取选中文本 -> 弹窗显示原文 -> 百度翻译 -> 更新翻译区</pre>
+    </div>
+    <div class="card">
+      <strong>B. 截图翻译</strong>
+      <pre>热键触发截图 -> macOS 离线 OCR(Vision) -> 百度翻译 -> 双区弹窗展示</pre>
+    </div>
+    <div class="card">
+      <strong>C. 防休眠</strong>
+      <pre>菜单切换 -> IOPMAssertion + pmset disablesleep -> 定时模式倒计时 -> 到期自动恢复</pre>
+    </div>
+
+    <h2 id="commands">4. 命令与 DSL</h2>
+    <div class="card">
+      <p>当前保留命令：<code>tbmsg</code>、<code>tbdone</code>。</p>
+      <pre>tbmsg "[icon:hermes] [sound:start] 任务开始"
+tbdone "[sound:end] 任务完成"</pre>
+      <p class="muted">已支持关键词图标：<code>claude</code> / <code>hermes</code> / <code>codex</code>；声音模板：<code>start</code> / <code>end</code>。</p>
+    </div>
+
+    <h2 id="config">5. 配置与权限</h2>
+    <div class="card">
+      <p>配置文件：<code>~/.touchbar-island/config.json</code></p>
+      <ul>
+        <li>热键：<code>hotkeys.text</code>、<code>hotkeys.screenshot</code></li>
+        <li>翻译：<code>baiduTranslate.appID</code>、<code>baiduTranslate.secret</code></li>
+      </ul>
+      <p>权限要求：</p>
+      <ul>
+        <li>辅助功能（选中文本读取）</li>
+        <li>屏幕录制（截图与 OCR）</li>
+        <li>管理员权限（首次配置防休眠策略，建议 sudoers 白名单）</li>
+      </ul>
+    </div>
+
+    <h2 id="build">6. 构建运行</h2>
+    <div class="card">
+      <pre>cd demo
+./build.sh</pre>
+      <p>输出并安装到：<code>/Applications/SleepGuardDemo.app</code></p>
+      <p class="ok">当前版本已包含：防休眠、截图/选中文本翻译、TouchBar 图标与声音 DSL、倒计时菜单。</p>
+      <p class="warn">注意：保持 Bundle ID / 签名 / 安装路径稳定，可减少 macOS TCC 反复授权。</p>
+    </div>
+  </div>
+</body>
+</html>

@@ -20,18 +20,33 @@ enum BaiduTranslateError: LocalizedError {
 
 final class BaiduTranslator {
     private let endpoint = URL(string: "https://fanyi-api.baidu.com/api/trans/vip/translate")!
+    private let cacheQueue = DispatchQueue(label: "sleepguard.baidu.translate.cache")
+    private var translationCache: [String: CacheEntry] = [:]
+    private var inflight: [String: [(Result<String, Error>) -> Void]] = [:]
 
     func translate(_ text: String, to targetLanguage: String = "zh", completion: @escaping (Result<String, Error>) -> Void) {
+        let normalizedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let key = "\(targetLanguage)|\(normalizedText)"
+
+        if let cached = cachedTranslation(for: key) {
+            completion(.success(cached))
+            return
+        }
+
+        if enqueueInflightIfNeeded(for: key, completion: completion) {
+            return
+        }
+
         guard let appID = credential(named: "BAIDU_TRANSLATE_APP_ID", defaultKey: "BaiduTranslateAppID"),
               let secret = credential(named: "BAIDU_TRANSLATE_SECRET", defaultKey: "BaiduTranslateSecret") else {
-            completion(.failure(BaiduTranslateError.missingCredentials))
+            finishInflight(for: key, with: .failure(BaiduTranslateError.missingCredentials))
             return
         }
 
         let salt = String(Int(Date().timeIntervalSince1970 * 1000))
-        let sign = md5(appID + text + salt + secret)
+        let sign = md5(appID + normalizedText + salt + secret)
         let bodyItems = [
-            "q": text,
+            "q": normalizedText,
             "from": "auto",
             "to": targetLanguage,
             "appid": appID,
@@ -46,15 +61,59 @@ final class BaiduTranslator {
 
         URLSession.shared.dataTask(with: request) { data, _, error in
             if let error {
-                completion(.failure(error))
+                self.finishInflight(for: key, with: .failure(error))
                 return
             }
             guard let data else {
-                completion(.failure(BaiduTranslateError.invalidResponse))
+                self.finishInflight(for: key, with: .failure(BaiduTranslateError.invalidResponse))
                 return
             }
-            completion(self.parse(data: data))
+            let result = self.parse(data: data)
+            if case .success(let translated) = result {
+                self.storeTranslation(translated, for: key)
+            }
+            self.finishInflight(for: key, with: result)
         }.resume()
+    }
+
+    private func cachedTranslation(for key: String) -> String? {
+        cacheQueue.sync {
+            guard let entry = translationCache[key], entry.expireAt > Date() else {
+                return nil
+            }
+            return entry.value
+        }
+    }
+
+    private func enqueueInflightIfNeeded(for key: String, completion: @escaping (Result<String, Error>) -> Void) -> Bool {
+        cacheQueue.sync {
+            if inflight[key] != nil {
+                inflight[key]?.append(completion)
+                return true
+            }
+            inflight[key] = [completion]
+            return false
+        }
+    }
+
+    private func finishInflight(for key: String, with result: Result<String, Error>) {
+        let callbacks: [(Result<String, Error>) -> Void] = cacheQueue.sync {
+            let blocks = inflight[key] ?? []
+            inflight[key] = nil
+            return blocks
+        }
+        for cb in callbacks {
+            cb(result)
+        }
+    }
+
+    private func storeTranslation(_ value: String, for key: String) {
+        cacheQueue.async {
+            if self.translationCache.count >= 200 {
+                self.translationCache.removeAll(keepingCapacity: true)
+            }
+            self.translationCache[key] = CacheEntry(value: value, expireAt: Date().addingTimeInterval(300))
+        }
     }
 
     private func credential(named environmentKey: String, defaultKey: String) -> String? {
@@ -112,5 +171,10 @@ final class BaiduTranslator {
             _ = CC_MD5(buffer.baseAddress, CC_LONG(data.count), &digest)
         }
         return digest.map { String(format: "%02x", $0) }.joined()
+    }
+
+    private struct CacheEntry {
+        let value: String
+        let expireAt: Date
     }
 }

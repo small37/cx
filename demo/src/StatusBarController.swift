@@ -10,6 +10,7 @@ final class StatusBarController: NSObject {
     private let prevent30Item = NSMenuItem()
     private let prevent60Item = NSMenuItem()
     private let prevent120Item = NSMenuItem()
+    private let countdownItem = NSMenuItem(title: "休眠剩余时间：--:--:--", action: nil, keyEquivalent: "")
     private let launchAtLoginItem = NSMenuItem()
     private let runtimeItem = NSMenuItem(title: "状态：运行中", action: nil, keyEquivalent: "")
     private let currentMessageItem = NSMenuItem(title: "当前消息：Claude Ready", action: nil, keyEquivalent: "")
@@ -19,9 +20,14 @@ final class StatusBarController: NSObject {
     private let featureSwitchItem = NSMenuItem()
     private let titleItem = NSMenuItem(title: "☕ SleepGuard", action: nil, keyEquivalent: "")
     private var disableTimer: Timer?
+    private var countdownTimer: Timer?
     private var selectedDuration: TimeInterval?
+    private var timedPreventSleepEndAt: Date?
     private var observerID: UUID?
     private(set) var isCaptureAndTextFeatureEnabled = true
+    private var lastRuntimeTitle = "状态：运行中"
+    private var lastMessageTitle = "当前消息：Claude Ready"
+    private var lastCountdownTitle = "休眠剩余时间：--:--:--"
 
     var onCaptureAndTextFeatureToggled: ((Bool) -> Void)?
 
@@ -37,6 +43,7 @@ final class StatusBarController: NSObject {
     }
 
     deinit {
+        stopCountdownTimer()
         if let observerID {
             messageStore.removeObserver(observerID)
         }
@@ -103,6 +110,9 @@ final class StatusBarController: NSObject {
         prevent120Item.action = #selector(prevent120Minutes)
         prevent120Item.target = self
         menu.addItem(prevent120Item)
+        countdownItem.isEnabled = false
+        countdownItem.isHidden = true
+        menu.addItem(countdownItem)
 
         menu.addItem(.separator())
 
@@ -129,12 +139,10 @@ final class StatusBarController: NSObject {
         prevent60Item.state = selectedDuration == 60 * 60 ? .on : .off
         prevent120Item.state = selectedDuration == 120 * 60 ? .on : .off
 
-        let symbolName = isActive ? "sun.max.fill" : "moon.zzz"
-        let image = NSImage(systemSymbolName: symbolName, accessibilityDescription: "SleepGuard status")
-        image?.isTemplate = true
-        button.image = image
+        button.image = isActive ? Self.activeImage : Self.inactiveImage
 
         launchAtLoginItem.state = isLaunchAtLoginEnabled() ? .on : .off
+        updateCountdownItem()
         updateRuntimeItems()
     }
 
@@ -143,10 +151,26 @@ final class StatusBarController: NSObject {
             guard let self else { return }
             let text = (currentMessage?.layout.isEmpty == false) ? (currentMessage?.layout ?? defaultStatus) : defaultStatus
             DispatchQueue.main.async {
-                self.currentMessageItem.title = "当前消息：\(text)"
-                self.pauseDisplayItem.isHidden = isPaused
-                self.resumeDisplayItem.isHidden = !isPaused
-                self.runtimeItem.title = isPaused ? "状态：已暂停" : "状态：运行中"
+                let runtimeTitle = isPaused ? "状态：已暂停" : "状态：运行中"
+                if self.lastRuntimeTitle != runtimeTitle {
+                    self.runtimeItem.title = runtimeTitle
+                    self.lastRuntimeTitle = runtimeTitle
+                }
+
+                let messageTitle = "当前消息：\(text)"
+                if self.lastMessageTitle != messageTitle {
+                    self.currentMessageItem.title = messageTitle
+                    self.lastMessageTitle = messageTitle
+                }
+
+                let shouldHidePause = isPaused
+                if self.pauseDisplayItem.isHidden != shouldHidePause {
+                    self.pauseDisplayItem.isHidden = shouldHidePause
+                }
+                let shouldHideResume = !isPaused
+                if self.resumeDisplayItem.isHidden != shouldHideResume {
+                    self.resumeDisplayItem.isHidden = shouldHideResume
+                }
             }
         }
     }
@@ -154,7 +178,9 @@ final class StatusBarController: NSObject {
     @objc private func togglePreventSleep() {
         disableTimer?.invalidate()
         disableTimer = nil
+        stopCountdownTimer()
         selectedDuration = nil
+        timedPreventSleepEndAt = nil
         sleepManager.toggle()
         updateUI()
         NSSound.beep()
@@ -175,11 +201,14 @@ final class StatusBarController: NSObject {
     private func startTimedPreventSleep(duration: TimeInterval) {
         disableTimer?.invalidate()
         disableTimer = nil
+        stopCountdownTimer()
         selectedDuration = duration
+        timedPreventSleepEndAt = Date().addingTimeInterval(duration)
 
         let enabled = sleepManager.enablePreventSleep(reason: "SleepGuardDemo timed full sleep prevention")
         guard enabled else {
             selectedDuration = nil
+            timedPreventSleepEndAt = nil
             updateUI()
             NSSound.beep()
             return
@@ -190,10 +219,13 @@ final class StatusBarController: NSObject {
             self.sleepManager.disablePreventSleep()
             self.selectedDuration = nil
             self.disableTimer = nil
+            self.timedPreventSleepEndAt = nil
+            self.stopCountdownTimer()
             self.updateUI()
             NSSound.beep()
         }
 
+        startCountdownTimer()
         updateUI()
         NSSound.beep()
     }
@@ -250,8 +282,66 @@ final class StatusBarController: NSObject {
     @objc private func quit() {
         disableTimer?.invalidate()
         disableTimer = nil
+        stopCountdownTimer()
         selectedDuration = nil
+        timedPreventSleepEndAt = nil
         sleepManager.disablePreventSleep()
         NSApp.terminate(nil)
     }
+
+    private func startCountdownTimer() {
+        stopCountdownTimer()
+        countdownTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+            self?.updateCountdownItem()
+        }
+        RunLoop.main.add(countdownTimer!, forMode: .common)
+    }
+
+    private func stopCountdownTimer() {
+        countdownTimer?.invalidate()
+        countdownTimer = nil
+        countdownItem.isHidden = true
+        if countdownItem.title != lastCountdownTitle {
+            countdownItem.title = lastCountdownTitle
+        }
+    }
+
+    private func updateCountdownItem() {
+        guard sleepManager.isPreventingSleep,
+              selectedDuration != nil,
+              let endAt = timedPreventSleepEndAt else {
+            countdownItem.isHidden = true
+            return
+        }
+
+        let remaining = max(0, Int(endAt.timeIntervalSinceNow))
+        let hours = remaining / 3600
+        let minutes = (remaining % 3600) / 60
+        let seconds = remaining % 60
+        let title = String(format: "休眠剩余时间：%02d:%02d:%02d", hours, minutes, seconds)
+
+        countdownItem.isHidden = false
+        if countdownItem.title != title {
+            countdownItem.title = title
+        }
+
+        if remaining <= 0 {
+            countdownItem.isHidden = true
+            stopCountdownTimer()
+        }
+    }
+}
+
+private extension StatusBarController {
+    static let activeImage: NSImage? = {
+        let image = NSImage(systemSymbolName: "sun.max.fill", accessibilityDescription: "SleepGuard status")
+        image?.isTemplate = true
+        return image
+    }()
+
+    static let inactiveImage: NSImage? = {
+        let image = NSImage(systemSymbolName: "moon.zzz", accessibilityDescription: "SleepGuard status")
+        image?.isTemplate = true
+        return image
+    }()
 }

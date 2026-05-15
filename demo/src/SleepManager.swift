@@ -55,12 +55,20 @@ final class SleepManager {
 
     private func setDisableSleep(_ enabled: Bool) -> Bool {
         let target = enabled ? "1" : "0"
+        if run(arguments: ["/usr/bin/sudo", "-n", "/usr/bin/pmset", "-a", "disablesleep", target]) {
+            return true
+        }
+
         let command = "/usr/bin/pmset -a disablesleep \(target)"
         let script = "do shell script \"\(command)\" with administrator privileges"
+        return run(arguments: ["/usr/bin/osascript", "-e", script])
+    }
 
+    private func run(arguments: [String]) -> Bool {
+        guard let executable = arguments.first else { return false }
         let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
-        process.arguments = ["-e", script]
+        process.executableURL = URL(fileURLWithPath: executable)
+        process.arguments = Array(arguments.dropFirst())
 
         do {
             try process.run()
