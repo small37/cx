@@ -5,10 +5,10 @@ Go 版终端命令选择器，功能与 Python 版一致。
 ## 安装
 
 ```bash
-cd "/Users/one/Documents/项目/测试2/cx-go"
-go install ./cmd/cx
+curl -fsSL https://raw.githubusercontent.com/small37/cx/main/install.sh | bash
 ```
 
+说明文档见：[docs/GIT_INSTALL.md](/Users/one/Documents/项目/cx命令行/docs/GIT_INSTALL.md)  
 产物：`$(go env GOPATH)/bin/cx`（一般是 `~/go/bin/cx`）。
 
 ## 跟 Python 版共存
@@ -38,7 +38,7 @@ TUI 内：`↑↓` 选择，`Enter` 确认，`Esc` / `Ctrl+C` 退出，`Ctrl+U` 
 在 `~/.zshrc` 追加：
 
 ```bash
-source "/Users/one/Documents/项目/测试2/cx-go/integrations/cx.zsh"
+source "$HOME/.cx/src/cx/integrations/cx.zsh"
 ```
 
 然后 `source ~/.zshrc`。在提示符里直接 `cx` / `cx fav`，选完命令落到下一行光标位置。
