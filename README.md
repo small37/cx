@@ -8,7 +8,14 @@ Go 版终端命令选择器，功能与 Python 版一致。
 curl -fsSL https://raw.githubusercontent.com/small37/cx/main/install.sh | bash
 ```
 
+预编译安装（不在本地编译）：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/small37/cx/main/install_prebuilt.sh | bash
+```
+
 说明文档见：[docs/GIT_INSTALL.md](/Users/one/Documents/项目/cx命令行/docs/GIT_INSTALL.md)  
+预编译安装说明：[docs/PREBUILT_INSTALL.md](/Users/one/Documents/项目/cx命令行/docs/PREBUILT_INSTALL.md)  
 产物：`$(go env GOPATH)/bin/cx`（一般是 `~/go/bin/cx`）。
 
 ## 跟 Python 版共存
