@@ -14,6 +14,13 @@ curl -fsSL https://raw.githubusercontent.com/small37/cx/main/install.sh | bash
 curl -fsSL https://raw.githubusercontent.com/small37/cx/main/install_prebuilt.sh | bash
 ```
 
+若提示找不到预编译文件，请先发布 Release 资产：
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+
 说明文档见：[docs/GIT_INSTALL.md](/Users/one/Documents/项目/cx命令行/docs/GIT_INSTALL.md)  
 预编译安装说明：[docs/PREBUILT_INSTALL.md](/Users/one/Documents/项目/cx命令行/docs/PREBUILT_INSTALL.md)  
 产物：`$(go env GOPATH)/bin/cx`（一般是 `~/go/bin/cx`）。
