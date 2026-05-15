@@ -13,6 +13,14 @@
 - macOS
 - Xcode Command Line Tools（已安装）
 
+## Git URL 一键安装
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/small37/codex/main/install.sh | bash
+```
+
+说明文档：[docs/GIT_INSTALL.md](/Users/one/Documents/项目/多功能bar|休眠/docs/GIT_INSTALL.md)
+
 ## 快速开始
 
 ```bash
