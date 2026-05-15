@@ -31,6 +31,11 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
     private var currentMessageType: MessageType?
     private var lastPlayedSoundMessageID: String?
     private var activeSound: NSSound?
+    private let metricsProvider = SystemMetricsProvider()
+    private var metricsTimer: Timer?
+    private var latestMetrics = SystemMetrics(cpuPercent: 0, memoryPercent: 0)
+    private weak var cpuLabel: NSTextField?
+    private weak var memoryLabel: NSTextField?
 
     init(store: CurrentMessageStore) {
         self.store = store
@@ -40,6 +45,7 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
 
     func start() {
         setupResponderFallback()
+        startMetricsUpdates()
         observerID = store.addObserver { [weak self] in
             self?.refresh()
         }
@@ -55,6 +61,8 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
         hostWindow = nil
         hostView = nil
         currentTouchBar = nil
+        metricsTimer?.invalidate()
+        metricsTimer = nil
         dismissSystemModalTouchBar()
     }
 
@@ -80,11 +88,7 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
 
             let touchBar = NSTouchBar()
             touchBar.delegate = self
-            if self.hasTrailingButtons {
-                touchBar.defaultItemIdentifiers = [Self.leadingIdentifier, .flexibleSpace, Self.trailingIdentifier]
-            } else {
-                touchBar.defaultItemIdentifiers = [Self.leadingIdentifier]
-            }
+            touchBar.defaultItemIdentifiers = [Self.leadingIdentifier, .flexibleSpace, Self.trailingIdentifier]
             touchBar.principalItemIdentifier = Self.leadingIdentifier
             self.currentTouchBar = touchBar
             self.appendRenderLog("render current=\(currentMessage?.layout ?? defaultStatus) nodes=\(self.renderedNodes.count) buttons=\(self.hasTrailingButtons)")
@@ -259,11 +263,52 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
             right.addArrangedSubview(button)
         }
 
-        // Keep a small trailing padding so the right-most button is not visually clipped.
-        let trailingPadding = NSView(frame: NSRect(x: 0, y: 0, width: 8, height: 1))
+        right.addArrangedSubview(makeResourceMonitorView())
+
+        let trailingPadding = NSView(frame: NSRect(x: 0, y: 0, width: 0, height: 1))
         trailingPadding.translatesAutoresizingMaskIntoConstraints = false
-        trailingPadding.widthAnchor.constraint(equalToConstant: 8).isActive = true
+        trailingPadding.widthAnchor.constraint(equalToConstant: 0).isActive = true
         right.addArrangedSubview(trailingPadding)
+    }
+
+    private func makeResourceMonitorView() -> NSView {
+        let container = NSView()
+        container.wantsLayer = true
+        container.layer?.backgroundColor = NSColor(calibratedWhite: 0.17, alpha: 0.95).cgColor
+        container.layer?.cornerRadius = 6
+        container.translatesAutoresizingMaskIntoConstraints = false
+
+        let cpu = NSTextField(labelWithString: "")
+        cpu.textColor = NSColor(calibratedWhite: 0.96, alpha: 1)
+        cpu.font = FontManager.shared.departureBold(size: 9)
+        cpu.alignment = .center
+
+        let mem = NSTextField(labelWithString: "")
+        mem.textColor = NSColor(calibratedWhite: 0.86, alpha: 1)
+        mem.font = FontManager.shared.departureBold(size: 9)
+        mem.alignment = .center
+
+        let stack = NSStackView(views: [cpu, mem])
+        stack.orientation = .vertical
+        stack.spacing = 2
+        stack.alignment = .centerX
+        stack.edgeInsets = NSEdgeInsets(top: 3, left: 6, bottom: 3, right: 6)
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        container.addSubview(stack)
+
+        NSLayoutConstraint.activate([
+            stack.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            stack.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+            stack.topAnchor.constraint(equalTo: container.topAnchor),
+            stack.bottomAnchor.constraint(equalTo: container.bottomAnchor),
+            container.widthAnchor.constraint(greaterThanOrEqualToConstant: 88),
+            container.heightAnchor.constraint(equalToConstant: 28)
+        ])
+
+        cpuLabel = cpu
+        memoryLabel = mem
+        updateMetricsLabels()
+        return container
     }
 
     private func normalizedNodes(_ nodes: [LayoutNode]) -> [LayoutNode] {
@@ -321,6 +366,45 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
         activeSound = sound
         lastPlayedSoundMessageID = messageID
         sound.play()
+    }
+
+    private func startMetricsUpdates() {
+        latestMetrics = metricsProvider.sample()
+        metricsTimer?.invalidate()
+        metricsTimer = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: true) { [weak self] _ in
+            guard let self else { return }
+            self.latestMetrics = self.metricsProvider.sample()
+            self.updateMetricsLabels()
+        }
+        if let metricsTimer {
+            RunLoop.main.add(metricsTimer, forMode: .common)
+        }
+    }
+
+    private func updateMetricsLabels() {
+        cpuLabel?.stringValue = "CPU \(scaledPercentText(latestMetrics.cpuPercent))"
+        memoryLabel?.stringValue = "MEM \(scaledPercentText(latestMetrics.memoryPercent))"
+        cpuLabel?.textColor = color(for: latestMetrics.cpuPercent)
+        memoryLabel?.textColor = color(for: latestMetrics.memoryPercent)
+    }
+
+    private func scaledPercentText(_ value: Double) -> String {
+        let rounded = max(0, min(100, Int(value.rounded())))
+        if rounded < 100 {
+            return String(format: "%02d%%", rounded)
+        }
+        return "100%"
+    }
+
+    private func color(for percent: Double) -> NSColor {
+        switch percent {
+        case ..<60:
+            return NSColor(calibratedWhite: 0.96, alpha: 1)
+        case 60..<85:
+            return .systemYellow
+        default:
+            return .systemRed
+        }
     }
 
     private func nsColor(from color: LayoutColor) -> NSColor {

@@ -34,5 +34,10 @@ if [ "$#" -ge 2 ]; then
   esac
 fi
 
-LAYOUT="[icon:${ICON_PATH}] [space:6] $*"
+# If caller already provides an explicit [icon:...] token, do not prepend default icon.
+if [[ "$*" == *"[icon:"* ]]; then
+  LAYOUT="$*"
+else
+  LAYOUT="[icon:${ICON_PATH}] [space:6] $*"
+fi
 "${HOME}/.touchbar-island/bin/tbsend" "MSG ${LAYOUT}"

@@ -5,7 +5,9 @@ final class FontManager {
     static let shared = FontManager()
 
     private var loadedPostScriptName: String?
+    private var loadedDeparturePostScriptName: String?
     private let preferredFontName = "FusionPixel"
+    private let preferredDepartureFontName = "DepartureMono-Regular"
 
     private init() {}
 
@@ -36,6 +38,14 @@ final class FontManager {
         return NSFont.monospacedSystemFont(ofSize: size, weight: .semibold)
     }
 
+    func departureBold(size: CGFloat) -> NSFont {
+        loadDepartureFontIfNeeded()
+        if let name = loadedDeparturePostScriptName, let font = NSFont(name: name, size: size) {
+            return font
+        }
+        return NSFont.monospacedSystemFont(ofSize: size, weight: .bold)
+    }
+
     private func fontCandidateURLs() -> [URL] {
         var urls: [URL] = []
         let fm = FileManager.default
@@ -53,6 +63,55 @@ final class FontManager {
         }
 
         return urls
+    }
+
+    private func loadDepartureFontIfNeeded() {
+        if loadedDeparturePostScriptName != nil {
+            return
+        }
+        for url in departureFontCandidateURLs() {
+            if registerDepartureFont(at: url) {
+                break
+            }
+        }
+    }
+
+    private func departureFontCandidateURLs() -> [URL] {
+        var urls: [URL] = []
+        let fm = FileManager.default
+
+        if let bundleURL = Bundle.main.resourceURL {
+            urls.append(bundleURL.appendingPathComponent("Fonts/DepartureMono-Regular.otf"))
+        }
+
+        let home = NSHomeDirectory()
+        urls.append(URL(fileURLWithPath: home + "/.touchbar-island/fonts/DepartureMono-Regular.otf"))
+        urls.append(URL(fileURLWithPath: home + "/Desktop/DepartureMono-Regular.otf"))
+
+        if let userFonts = fm.urls(for: .libraryDirectory, in: .userDomainMask).first {
+            urls.append(userFonts.appendingPathComponent("Fonts/DepartureMono-Regular.otf"))
+        }
+
+        return urls
+    }
+
+    private func registerDepartureFont(at url: URL) -> Bool {
+        guard FileManager.default.fileExists(atPath: url.path) else { return false }
+        var error: Unmanaged<CFError>?
+        let ok = CTFontManagerRegisterFontsForURL(url as CFURL, .process, &error)
+        if !ok && error == nil {
+            return false
+        }
+
+        if let descriptor = CTFontManagerCreateFontDescriptorsFromURL(url as CFURL) as? [CTFontDescriptor],
+           let first = descriptor.first {
+            let name = CTFontDescriptorCopyAttribute(first, kCTFontNameAttribute) as? String
+            loadedDeparturePostScriptName = name ?? preferredDepartureFontName
+            return true
+        }
+
+        loadedDeparturePostScriptName = preferredDepartureFontName
+        return true
     }
 
     private func registerFont(at url: URL) -> Bool {
@@ -74,4 +133,3 @@ final class FontManager {
         return true
     }
 }
-

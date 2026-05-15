@@ -34,6 +34,7 @@ swiftc \
   "$ROOT_DIR/src/LayoutNode.swift" \
   "$ROOT_DIR/src/LayoutParser.swift" \
   "$ROOT_DIR/src/FontManager.swift" \
+  "$ROOT_DIR/src/SystemMetricsProvider.swift" \
   "$ROOT_DIR/src/CurrentMessageStore.swift" \
   "$ROOT_DIR/src/CommandRouter.swift" \
   "$ROOT_DIR/src/SocketServer.swift" \
