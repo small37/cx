@@ -31,6 +31,7 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
     private var currentMessageType: MessageType?
     private var lastPlayedSoundMessageID: String?
     private var activeSound: NSSound?
+    private var isSystemModalPresented = false
     private let metricsProvider = SystemMetricsProvider()
     private var metricsTimer: Timer?
     private var latestMetrics = SystemMetrics(cpuPercent: 0, memoryPercent: 0)
@@ -64,6 +65,7 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
         metricsTimer?.invalidate()
         metricsTimer = nil
         dismissSystemModalTouchBar()
+        isSystemModalPresented = false
     }
 
     private func refresh() {
@@ -97,7 +99,12 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
                 self.hostView?.hostedTouchBar = touchBar
                 self.hostWindow?.makeFirstResponder(self.hostView)
                 self.hostWindow?.orderFront(nil)
+                if self.isSystemModalPresented {
+                    self.dismissSystemModalTouchBar()
+                    self.isSystemModalPresented = false
+                }
                 self.presentSystemModalTouchBar(touchBar)
+                self.isSystemModalPresented = true
             }
         }
     }
